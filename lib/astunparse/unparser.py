@@ -49,7 +49,7 @@ class Unparser:
 
     def enter(self):
         "Print ':', and increase the indentation."
-        self.write(":")
+        # self.write(":")
         self._indent += 1
 
     def leave(self):
@@ -224,6 +224,7 @@ class Unparser:
             self.enter()
             self.dispatch(t.finalbody)
             self.leave()
+        self.fill('end')
 
     def _TryExcept(self, t):
         self.fill("try")
@@ -238,6 +239,7 @@ class Unparser:
             self.enter()
             self.dispatch(t.orelse)
             self.leave()
+        self.fill('end')
 
     def _TryFinally(self, t):
         if len(t.body) == 1 and isinstance(t.body[0], ast.TryExcept):
@@ -253,6 +255,7 @@ class Unparser:
         self.enter()
         self.dispatch(t.finalbody)
         self.leave()
+        self.fill('end')
 
     def _ExceptHandler(self, t):
         self.fill("except")
@@ -306,6 +309,7 @@ class Unparser:
         self.enter()
         self.dispatch(t.body)
         self.leave()
+        self.fill('end')
 
     def _FunctionDef(self, t):
         self.write("\n")
@@ -321,6 +325,7 @@ class Unparser:
         self.enter()
         self.dispatch(t.body)
         self.leave()
+        self.fill('end')
 
     def _For(self, t):
         self.fill("for ")
@@ -335,6 +340,7 @@ class Unparser:
             self.enter()
             self.dispatch(t.orelse)
             self.leave()
+        self.fill('end')
 
     def _If(self, t):
         self.fill("if ")
@@ -357,6 +363,7 @@ class Unparser:
             self.enter()
             self.dispatch(t.orelse)
             self.leave()
+        self.fill('end')
 
     def _While(self, t):
         self.fill("while ")
@@ -369,6 +376,7 @@ class Unparser:
             self.enter()
             self.dispatch(t.orelse)
             self.leave()
+        self.fill('end')
 
     def _With(self, t):
         self.fill("with ")
@@ -382,6 +390,7 @@ class Unparser:
         self.enter()
         self.dispatch(t.body)
         self.leave()
+        self.fill('end')
 
     # expr
     def _Bytes(self, t):
