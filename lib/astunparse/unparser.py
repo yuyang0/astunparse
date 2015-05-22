@@ -7,6 +7,7 @@ import os
 import tokenize
 from six import StringIO
 
+from environment import Env
 # Large float and imaginary literals get turned into infinities in the AST.
 # We unparse those infinities to INFSTR.
 INFSTR = "1e" + repr(sys.float_info.max_10_exp + 1)
@@ -35,6 +36,7 @@ class Unparser:
         self.f = file
         self.future_imports = []
         self._indent = 0
+        env = Env()
         self.dispatch(tree, env)
         print("", file=self.f)
         self.f.flush()
@@ -56,7 +58,7 @@ class Unparser:
         "Decrease the indentation level."
         self._indent -= 1
 
-    def dispatch(self, tree):
+    def dispatch(self, tree, env):
         "Dispatcher function, dispatching tree type T to method _T."
         if isinstance(tree, list):
             for t in tree:
