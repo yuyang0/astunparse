@@ -35,7 +35,7 @@ class Unparser:
         self.f = file
         self.future_imports = []
         self._indent = 0
-        self.dispatch(tree)
+        self.dispatch(tree, env)
         print("", file=self.f)
         self.f.flush()
 
@@ -60,7 +60,7 @@ class Unparser:
         "Dispatcher function, dispatching tree type T to method _T."
         if isinstance(tree, list):
             for t in tree:
-                self.dispatch(t)
+                self.dispatch(t, env)
             return
         meth = getattr(self, "_"+tree.__class__.__name__)
         meth(tree)
@@ -75,12 +75,12 @@ class Unparser:
 
     def _Module(self, tree):
         for stmt in tree.body:
-            self.dispatch(stmt)
+            self.dispatch(stmt, env)
 
     # stmt
     def _Expr(self, tree):
         self.fill()
-        self.dispatch(tree.value)
+        self.dispatch(tree.value, env)
 
     def _Import(self, t):
         self.fill("import ")
@@ -101,21 +101,21 @@ class Unparser:
     def _Assign(self, t):
         self.fill()
         for target in t.targets:
-            self.dispatch(target)
+            self.dispatch(target, env)
             self.write(" = ")
-        self.dispatch(t.value)
+        self.dispatch(t.value, env)
 
     def _AugAssign(self, t):
         self.fill()
-        self.dispatch(t.target)
+        self.dispatch(t.target, env)
         self.write(" "+self.binop[t.op.__class__.__name__]+"= ")
-        self.dispatch(t.value)
+        self.dispatch(t.value, env)
 
     def _Return(self, t):
         self.fill("return")
         if t.value:
             self.write(" ")
-            self.dispatch(t.value)
+            self.dispatch(t.value, env)
 
     def _Pass(self, t):
         self.fill("pass")
@@ -132,32 +132,32 @@ class Unparser:
 
     def _Assert(self, t):
         self.fill("assert ")
-        self.dispatch(t.test)
+        self.dispatch(t.test, env)
         if t.msg:
             self.write(", ")
-            self.dispatch(t.msg)
+            self.dispatch(t.msg, env)
 
     def _Exec(self, t):
         self.fill("exec ")
-        self.dispatch(t.body)
+        self.dispatch(t.body, env)
         if t.globals:
             self.write(" in ")
-            self.dispatch(t.globals)
+            self.dispatch(t.globals, env)
         if t.locals:
             self.write(", ")
-            self.dispatch(t.locals)
+            self.dispatch(t.locals, env)
 
     def _Print(self, t):
         self.fill("print ")
         do_comma = False
         if t.dest:
             self.write(">>")
-            self.dispatch(t.dest)
+            self.dispatch(t.dest, env)
             do_comma = True
         for e in t.values:
             if do_comma:self.write(", ")
             else:do_comma=True
-            self.dispatch(e)
+            self.dispatch(e, env)
         if not t.nl:
             self.write(",")
 
@@ -174,7 +174,7 @@ class Unparser:
         self.write("yield")
         if t.value:
             self.write(" ")
-            self.dispatch(t.value)
+            self.dispatch(t.value, env)
         self.write(")")
 
     def _YieldFrom(self, t):
@@ -182,7 +182,7 @@ class Unparser:
         self.write("yield from")
         if t.value:
             self.write(" ")
-            self.dispatch(t.value)
+            self.dispatch(t.value, env)
         self.write(")")
 
     def _Raise(self, t):
@@ -192,68 +192,68 @@ class Unparser:
                 assert not t.cause
                 return
             self.write(" ")
-            self.dispatch(t.exc)
+            self.dispatch(t.exc, env)
             if t.cause:
                 self.write(" from ")
-                self.dispatch(t.cause)
+                self.dispatch(t.cause, env)
         else:
             self.write(" ")
             if t.type:
-                self.dispatch(t.type)
+                self.dispatch(t.type, env)
             if t.inst:
                 self.write(", ")
-                self.dispatch(t.inst)
+                self.dispatch(t.inst, env)
             if t.tback:
                 self.write(", ")
-                self.dispatch(t.tback)
+                self.dispatch(t.tback, env)
 
     def _Try(self, t):
         self.fill("try")
         self.enter()
-        self.dispatch(t.body)
+        self.dispatch(t.body, env)
         self.leave()
         for ex in t.handlers:
-            self.dispatch(ex)
+            self.dispatch(ex, env)
         if t.orelse:
             self.fill("else")
             self.enter()
-            self.dispatch(t.orelse)
+            self.dispatch(t.orelse, env)
             self.leave()
         if t.finalbody:
             self.fill("finally")
             self.enter()
-            self.dispatch(t.finalbody)
+            self.dispatch(t.finalbody, env)
             self.leave()
         self.fill('end')
 
     def _TryExcept(self, t):
         self.fill("try")
         self.enter()
-        self.dispatch(t.body)
+        self.dispatch(t.body, env)
         self.leave()
 
         for ex in t.handlers:
-            self.dispatch(ex)
+            self.dispatch(ex, env)
         if t.orelse:
             self.fill("else")
             self.enter()
-            self.dispatch(t.orelse)
+            self.dispatch(t.orelse, env)
             self.leave()
         self.fill('end')
 
     def _TryFinally(self, t):
         if len(t.body) == 1 and isinstance(t.body[0], ast.TryExcept):
             # try-except-finally
-            self.dispatch(t.body)
+            self.dispatch(t.body, env)
         else:
             self.fill("try")
             self.enter()
-            self.dispatch(t.body)
+            self.dispatch(t.body, env)
             self.leave()
 
         self.fill("finally")
         self.enter()
-        self.dispatch(t.finalbody)
+        self.dispatch(t.finalbody, env)
         self.leave()
         self.fill('end')
 
@@ -261,22 +261,22 @@ class Unparser:
         self.fill("except")
         if t.type:
             self.write(" ")
-            self.dispatch(t.type)
+            self.dispatch(t.type, env)
         if t.name:
             self.write(" as ")
             if six.PY3:
                 self.write(t.name)
             else:
-                self.dispatch(t.name)
+                self.dispatch(t.name, env)
         self.enter()
-        self.dispatch(t.body)
+        self.dispatch(t.body, env)
         self.leave()
 
     def _ClassDef(self, t):
         self.write("\n")
         for deco in t.decorator_list:
             self.fill("@")
-            self.dispatch(deco)
+            self.dispatch(deco, env)
         self.fill("class "+t.name)
         if six.PY3:
             self.write("(")
@@ -284,30 +284,30 @@ class Unparser:
             for e in t.bases:
                 if comma: self.write(", ")
                 else: comma = True
-                self.dispatch(e)
+                self.dispatch(e, env)
             for e in t.keywords:
                 if comma: self.write(", ")
                 else: comma = True
-                self.dispatch(e)
+                self.dispatch(e, env)
             if t.starargs:
                 if comma: self.write(", ")
                 else: comma = True
                 self.write("*")
-                self.dispatch(t.starargs)
+                self.dispatch(t.starargs, env)
             if t.kwargs:
                 if comma: self.write(", ")
                 else: comma = True
                 self.write("**")
-                self.dispatch(t.kwargs)
+                self.dispatch(t.kwargs, env)
             self.write(")")
         elif t.bases:
                 self.write("(")
                 for a in t.bases:
-                    self.dispatch(a)
+                    self.dispatch(a, env)
                     self.write(", ")
                 self.write(")")
         self.enter()
-        self.dispatch(t.body)
+        self.dispatch(t.body, env)
         self.leave()
         self.fill('end')
 
@@ -315,66 +315,66 @@ class Unparser:
         self.write("\n")
         for deco in t.decorator_list:
             self.fill("@")
-            self.dispatch(deco)
+            self.dispatch(deco, env)
         self.fill("def "+t.name + "(")
-        self.dispatch(t.args)
+        self.dispatch(t.args, env)
         self.write(")")
         if getattr(t, "returns", False):
             self.write(" -> ")
-            self.dispatch(t.returns)
+            self.dispatch(t.returns, env)
         self.enter()
-        self.dispatch(t.body)
+        self.dispatch(t.body, env)
         self.leave()
         self.fill('end')
 
     def _For(self, t):
         self.fill("for ")
-        self.dispatch(t.target)
+        self.dispatch(t.target, env)
         self.write(" in ")
-        self.dispatch(t.iter)
+        self.dispatch(t.iter, env)
         self.enter()
-        self.dispatch(t.body)
+        self.dispatch(t.body, env)
         self.leave()
         if t.orelse:
             self.fill("else")
             self.enter()
-            self.dispatch(t.orelse)
+            self.dispatch(t.orelse, env)
             self.leave()
         self.fill('end')
 
     def _If(self, t):
         self.fill("if ")
-        self.dispatch(t.test)
+        self.dispatch(t.test, env)
         self.enter()
-        self.dispatch(t.body)
+        self.dispatch(t.body, env)
         self.leave()
         # collapse nested ifs into equivalent elifs.
         while (t.orelse and len(t.orelse) == 1 and
                isinstance(t.orelse[0], ast.If)):
             t = t.orelse[0]
             self.fill("elif ")
-            self.dispatch(t.test)
+            self.dispatch(t.test, env)
             self.enter()
-            self.dispatch(t.body)
+            self.dispatch(t.body, env)
             self.leave()
         # final else
         if t.orelse:
             self.fill("else")
             self.enter()
-            self.dispatch(t.orelse)
+            self.dispatch(t.orelse, env)
             self.leave()
         self.fill('end')
 
     def _While(self, t):
         self.fill("while ")
-        self.dispatch(t.test)
+        self.dispatch(t.test, env)
         self.enter()
-        self.dispatch(t.body)
+        self.dispatch(t.body, env)
         self.leave()
         if t.orelse:
             self.fill("else")
             self.enter()
-            self.dispatch(t.orelse)
+            self.dispatch(t.orelse, env)
             self.leave()
         self.fill('end')
 
@@ -383,12 +383,12 @@ class Unparser:
         if hasattr(t, 'items'):
             interleave(lambda: self.write(", "), self.dispatch, t.items)
         else:
-            self.dispatch(t.context_expr)
+            self.dispatch(t.context_expr, env)
             if t.optional_vars:
                 self.write(" as ")
-                self.dispatch(t.optional_vars)
+                self.dispatch(t.optional_vars, env)
         self.enter()
-        self.dispatch(t.body)
+        self.dispatch(t.body, env)
         self.leave()
         self.fill('end')
 
@@ -420,7 +420,7 @@ class Unparser:
 
     def _Repr(self, t):
         self.write("`")
-        self.dispatch(t.value)
+        self.dispatch(t.value, env)
         self.write("`")
 
     def _Num(self, t):
@@ -445,50 +445,50 @@ class Unparser:
 
     def _ListComp(self, t):
         self.write("[")
-        self.dispatch(t.elt)
+        self.dispatch(t.elt, env)
         for gen in t.generators:
-            self.dispatch(gen)
+            self.dispatch(gen, env)
         self.write("]")
 
     def _GeneratorExp(self, t):
         self.write("(")
-        self.dispatch(t.elt)
+        self.dispatch(t.elt, env)
         for gen in t.generators:
-            self.dispatch(gen)
+            self.dispatch(gen, env)
         self.write(")")
 
     def _SetComp(self, t):
         self.write("{")
-        self.dispatch(t.elt)
+        self.dispatch(t.elt, env)
         for gen in t.generators:
-            self.dispatch(gen)
+            self.dispatch(gen, env)
         self.write("}")
 
     def _DictComp(self, t):
         self.write("{")
-        self.dispatch(t.key)
+        self.dispatch(t.key, env)
         self.write(": ")
-        self.dispatch(t.value)
+        self.dispatch(t.value, env)
         for gen in t.generators:
-            self.dispatch(gen)
+            self.dispatch(gen, env)
         self.write("}")
 
     def _comprehension(self, t):
         self.write(" for ")
-        self.dispatch(t.target)
+        self.dispatch(t.target, env)
         self.write(" in ")
-        self.dispatch(t.iter)
+        self.dispatch(t.iter, env)
         for if_clause in t.ifs:
             self.write(" if ")
-            self.dispatch(if_clause)
+            self.dispatch(if_clause, env)
 
     def _IfExp(self, t):
         self.write("(")
-        self.dispatch(t.body)
+        self.dispatch(t.body, env)
         self.write(" if ")
-        self.dispatch(t.test)
+        self.dispatch(t.test, env)
         self.write(" else ")
-        self.dispatch(t.orelse)
+        self.dispatch(t.orelse, env)
         self.write(")")
 
     def _Set(self, t):
@@ -501,9 +501,9 @@ class Unparser:
         self.write("{")
         def write_pair(pair):
             (k, v) = pair
-            self.dispatch(k)
+            self.dispatch(k, env)
             self.write(": ")
-            self.dispatch(v)
+            self.dispatch(v, env)
         interleave(lambda: self.write(", "), write_pair, zip(t.keys, t.values))
         self.write("}")
 
@@ -511,7 +511,7 @@ class Unparser:
         self.write("(")
         if len(t.elts) == 1:
             (elt,) = t.elts
-            self.dispatch(elt)
+            self.dispatch(elt, env)
             self.write(",")
         else:
             interleave(lambda: self.write(", "), self.dispatch, t.elts)
@@ -529,10 +529,10 @@ class Unparser:
             # -7j is different from -(7j).  (The first has real part 0.0, the second
             # has real part -0.0.)
             self.write("(")
-            self.dispatch(t.operand)
+            self.dispatch(t.operand, env)
             self.write(")")
         else:
-            self.dispatch(t.operand)
+            self.dispatch(t.operand, env)
         self.write(")")
 
     binop = { "Add":"+", "Sub":"-", "Mult":"*", "Div":"/", "Mod":"%",
@@ -540,19 +540,19 @@ class Unparser:
                     "FloorDiv":"//", "Pow": "**"}
     def _BinOp(self, t):
         self.write("(")
-        self.dispatch(t.left)
+        self.dispatch(t.left, env)
         self.write(" " + self.binop[t.op.__class__.__name__] + " ")
-        self.dispatch(t.right)
+        self.dispatch(t.right, env)
         self.write(")")
 
     cmpops = {"Eq":"==", "NotEq":"!=", "Lt":"<", "LtE":"<=", "Gt":">", "GtE":">=",
                         "Is":"is", "IsNot":"is not", "In":"in", "NotIn":"not in"}
     def _Compare(self, t):
         self.write("(")
-        self.dispatch(t.left)
+        self.dispatch(t.left, env)
         for o, e in zip(t.ops, t.comparators):
             self.write(" " + self.cmpops[o.__class__.__name__] + " ")
-            self.dispatch(e)
+            self.dispatch(e, env)
         self.write(")")
 
     boolops = {ast.And: 'and', ast.Or: 'or'}
@@ -563,7 +563,7 @@ class Unparser:
         self.write(")")
 
     def _Attribute(self,t):
-        self.dispatch(t.value)
+        self.dispatch(t.value, env)
         # Special case: 3.__abs__() is a syntax error, so if t.value
         # is an integer literal then we need to either parenthesize
         # it or add an extra space to get 3 .__abs__().
@@ -573,55 +573,55 @@ class Unparser:
         self.write(t.attr)
 
     def _Call(self, t):
-        self.dispatch(t.func)
+        self.dispatch(t.func, env)
         self.write("(")
         comma = False
         for e in t.args:
             if comma: self.write(", ")
             else: comma = True
-            self.dispatch(e)
+            self.dispatch(e, env)
         for e in t.keywords:
             if comma: self.write(", ")
             else: comma = True
-            self.dispatch(e)
+            self.dispatch(e, env)
         if t.starargs:
             if comma: self.write(", ")
             else: comma = True
             self.write("*")
-            self.dispatch(t.starargs)
+            self.dispatch(t.starargs, env)
         if t.kwargs:
             if comma: self.write(", ")
             else: comma = True
             self.write("**")
-            self.dispatch(t.kwargs)
+            self.dispatch(t.kwargs, env)
         self.write(")")
 
     def _Subscript(self, t):
-        self.dispatch(t.value)
+        self.dispatch(t.value, env)
         self.write("[")
-        self.dispatch(t.slice)
+        self.dispatch(t.slice, env)
         self.write("]")
 
     def _Starred(self, t):
         self.write("*")
-        self.dispatch(t.value)
+        self.dispatch(t.value, env)
 
     # slice
     def _Ellipsis(self, t):
         self.write("...")
 
     def _Index(self, t):
-        self.dispatch(t.value)
+        self.dispatch(t.value, env)
 
     def _Slice(self, t):
         if t.lower:
-            self.dispatch(t.lower)
+            self.dispatch(t.lower, env)
         self.write(":")
         if t.upper:
-            self.dispatch(t.upper)
+            self.dispatch(t.upper, env)
         if t.step:
             self.write(":")
-            self.dispatch(t.step)
+            self.dispatch(t.step, env)
 
     def _ExtSlice(self, t):
         interleave(lambda: self.write(', '), self.dispatch, t.dims)
@@ -631,7 +631,7 @@ class Unparser:
         self.write(t.arg)
         if t.annotation:
             self.write(": ")
-            self.dispatch(t.annotation)
+            self.dispatch(t.annotation, env)
 
     # others
     def _arguments(self, t):
@@ -641,10 +641,10 @@ class Unparser:
         for a,d in zip(t.args, defaults):
             if first:first = False
             else: self.write(", ")
-            self.dispatch(a)
+            self.dispatch(a, env)
             if d:
                 self.write("=")
-                self.dispatch(d)
+                self.dispatch(d, env)
 
         # varargs, or bare '*' if no varargs but keyword-only arguments present
         if t.vararg or getattr(t, "kwonlyargs", False):
@@ -656,22 +656,22 @@ class Unparser:
                     self.write(t.vararg.arg)
                     if t.vararg.annotation:
                         self.write(": ")
-                        self.dispatch(t.vararg.annotation)
+                        self.dispatch(t.vararg.annotation, env)
                 else:
                     self.write(t.vararg)
                     if getattr(t, 'varargannotation', None):
                         self.write(": ")
-                        self.dispatch(t.varargannotation)
+                        self.dispatch(t.varargannotation, env)
 
         # keyword-only arguments
         if getattr(t, "kwonlyargs", False):
             for a, d in zip(t.kwonlyargs, t.kw_defaults):
                 if first:first = False
                 else: self.write(", ")
-                self.dispatch(a),
+                self.dispatch(a, env),
                 if d:
                     self.write("=")
-                    self.dispatch(d)
+                    self.dispatch(d, env)
 
         # kwargs
         if t.kwarg:
@@ -681,24 +681,24 @@ class Unparser:
                 self.write("**"+t.kwarg.arg)
                 if t.kwarg.annotation:
                     self.write(": ")
-                    self.dispatch(t.kwarg.annotation)
+                    self.dispatch(t.kwarg.annotation, env)
             else:
                 self.write("**"+t.kwarg)
                 if getattr(t, 'kwargannotation', None):
                     self.write(": ")
-                    self.dispatch(t.kwargannotation)
+                    self.dispatch(t.kwargannotation, env)
 
     def _keyword(self, t):
         self.write(t.arg)
         self.write("=")
-        self.dispatch(t.value)
+        self.dispatch(t.value, env)
 
     def _Lambda(self, t):
         self.write("(")
         self.write("lambda ")
-        self.dispatch(t.args)
+        self.dispatch(t.args, env)
         self.write(": ")
-        self.dispatch(t.body)
+        self.dispatch(t.body, env)
         self.write(")")
 
     def _alias(self, t):
@@ -707,10 +707,10 @@ class Unparser:
             self.write(" as "+t.asname)
 
     def _withitem(self, t):
-        self.dispatch(t.context_expr)
+        self.dispatch(t.context_expr, env)
         if t.optional_vars:
             self.write(" as ")
-            self.dispatch(t.optional_vars)
+            self.dispatch(t.optional_vars, env)
 
 def roundtrip(filename, output=sys.stdout):
     if six.PY3:
